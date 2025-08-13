@@ -2,7 +2,7 @@ package main
 
 func main() {
 	app := InitializeApp()
-	err := app.Run(":9090")
+	err := app.Run(":9080")
 	if err != nil {
 		println("运行异常!", err.Error())
 		return

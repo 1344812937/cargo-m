@@ -14,8 +14,8 @@ func NewMavenRepoHandler(mavenService *service.MavenService) *MavenRepoHandler {
 	return &MavenRepoHandler{mavenService}
 }
 
+// Register 路由注册
+// 将需要暴露的路由方法注册
 func (handler *MavenRepoHandler) Register(router *gin.RouterGroup) {
-	router.GET("/test", func(c *gin.Context) {
-		c.JSON(200, gin.H{"gav": "hh"})
-	})
+	router.GET("/getRepo/*path", handler.mavenService.GetRepo)
 }
