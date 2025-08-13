@@ -4,6 +4,8 @@ go 1.24.3
 
 exclude github.com/jinzhu/inflection v1.0.0+incompatible
 
+require github.com/gin-gonic/gin v1.10.1
+
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
@@ -13,7 +15,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
-	github.com/gin-gonic/gin v1.10.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.22.0 // indirect
