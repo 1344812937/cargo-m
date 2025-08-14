@@ -3,6 +3,8 @@ package core
 import (
 	"cargo-m/internal/config"
 	"cargo-m/internal/tasks"
+	"cargo-m/internal/until"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,6 +28,7 @@ func (a *Application) Start() {
 			panic(err)
 		}
 	}
+	until.Log.Info("Application started")
 }
 
 func (a *Application) Close() {

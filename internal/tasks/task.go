@@ -2,6 +2,8 @@ package tasks
 
 import (
 	"cargo-m/internal/service"
+	"cargo-m/internal/until"
+
 	"github.com/robfig/cron/v3"
 )
 
@@ -11,17 +13,17 @@ type CronTask struct {
 
 // NewCronTask 注册当前定时任务
 func NewCronTask(mavenService *service.MavenService) *CronTask {
-	println("定时任务注册")
+	until.Log.Info("定时任务注册")
 	res := &CronTask{cron: cron.New()}
 	_, err := res.cron.AddFunc("*/5 * * * *", func() {
-		println("扫描本地目录任务开始")
+		until.Log.Info("扫描本地目录任务开始")
 		mavenService.GetLocalMavenRepo()
-		println("扫描本地目录任务结束")
+		until.Log.Info("扫描本地目录任务结束")
 	})
 	if err != nil {
 		panic(err)
 	}
-	println("定时任务注册成功!")
+	until.Log.Info("定时任务注册成功")
 	return res
 }
 
