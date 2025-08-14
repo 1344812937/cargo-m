@@ -3,6 +3,7 @@ package service
 import (
 	"cargo-m/internal/repository"
 	"github.com/gin-gonic/gin"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -22,6 +23,10 @@ type MavenGAV struct {
 	FileName   string `json:"filename" binding:"required"`
 	Classifier string `json:"classifier,omitempty"` // 可选
 	Extension  string `json:"extension,omitempty"`  // 可选
+}
+
+func (t *MavenService) GetLocalMavenRepo() {
+
 }
 
 func (t *MavenService) GetRepo(c *gin.Context) {
@@ -76,5 +81,36 @@ func parseMavenPath(path string) *MavenGAV {
 	// 7. 获取扩展名
 	res.Extension = strings.TrimPrefix(filepath.Ext(res.FileName), ".")
 
+	return res
+}
+
+func scan(path string, maxDepth int) []string {
+	var res []string
+	rootDepth := strings.Count(path, string(os.PathSeparator))
+	if path == "" || path == "." || path == "."+string(os.PathSeparator) {
+		rootDepth = 0 // 当前目录的特殊处理
+	}
+	err := filepath.WalkDir(path, func(path string, d os.DirEntry, err error) error {
+
+		if err != nil {
+			println(err)
+		}
+		depth := strings.Count(path, string(os.PathSeparator)) - rootDepth
+		if depth > maxDepth {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.IsDir() {
+			res = append(res, path)
+		}
+		return nil
+	})
+
+	println(len(res))
+	if err != nil {
+		return nil
+	}
 	return res
 }

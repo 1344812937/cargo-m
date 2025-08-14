@@ -8,17 +8,22 @@ package main
 
 import (
 	"cargo-m/internal/api"
+	"cargo-m/internal/config"
+	"cargo-m/internal/core"
 	"cargo-m/internal/repository"
 	"cargo-m/internal/service"
-	"github.com/gin-gonic/gin"
+	"cargo-m/internal/tasks"
 )
 
 // Injectors from wire.go:
 
-func InitializeApp() *gin.Engine {
+func InitializeApp() *core.Application {
+	applicationConfig := config.LoadApplicationConfig()
 	mavenRepo := repository.NewMavenRepo()
 	mavenService := service.NewMavenService(mavenRepo)
+	cronTask := tasks.NewCronTask(mavenService)
 	mavenRepoHandler := api.NewMavenRepoHandler(mavenService)
 	engine := api.NewRouter(mavenRepoHandler)
-	return engine
+	application := core.NewApplication(applicationConfig, cronTask, engine)
+	return application
 }
