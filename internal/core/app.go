@@ -4,6 +4,7 @@ import (
 	"cargo-m/internal/config"
 	"cargo-m/internal/tasks"
 	"cargo-m/internal/until"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ func (a *Application) Start() {
 		a.CornTask.Start()
 	}
 	if a.WebEngine != nil {
-		err := a.WebEngine.Run(":9080")
+		err := a.WebEngine.Run(fmt.Sprintf("%s:%s", "", a.ApplicationConfig.WebConfig.Port))
 		if err != nil {
 			panic(err)
 		}
