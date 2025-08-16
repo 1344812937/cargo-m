@@ -20,7 +20,7 @@ import (
 func InitializeApp() *core.Application {
 	applicationConfig := config.LoadApplicationConfig()
 	mavenRepo := repository.NewMavenRepo()
-	mavenService := service.NewMavenService(mavenRepo)
+	mavenService := service.NewMavenService(mavenRepo, applicationConfig)
 	cronTask := tasks.NewCronTask(mavenService)
 	mavenRepoHandler := api.NewMavenRepoHandler(mavenService)
 	engine := api.NewRouter(mavenRepoHandler)

@@ -1,4 +1,5 @@
 /build/
 /.idea
-cfg.toml
 /logs/
+cfg.toml
+data.db

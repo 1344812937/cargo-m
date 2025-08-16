@@ -1,22 +1,29 @@
 package service
 
 import (
+	"cargo-m/internal/config"
+	"cargo-m/internal/model"
 	"cargo-m/internal/repository"
-	"github.com/gin-gonic/gin"
+	"cargo-m/internal/until"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type MavenService struct {
-	mavenRepo *repository.MavenRepo
+	applicationConfig *config.ApplicationConfig
+	mavenRepo         *repository.MavenRepo
 }
 
-func NewMavenService(mavenRepo *repository.MavenRepo) *MavenService {
-	return &MavenService{mavenRepo: mavenRepo}
+func NewMavenService(mavenRepo *repository.MavenRepo, applicationConfig *config.ApplicationConfig) *MavenService {
+	return &MavenService{mavenRepo: mavenRepo, applicationConfig: applicationConfig}
 }
 
 type MavenGAV struct {
+	Key        string
 	GroupId    string `json:"groupId" binding:"required"`
 	ArtifactId string `json:"artifactId" binding:"required"`
 	Version    string `json:"version" binding:"required"`
@@ -25,23 +32,62 @@ type MavenGAV struct {
 	Extension  string `json:"extension,omitempty"`  // 可选
 }
 
-func (t *MavenService) GetLocalMavenRepo() {
-
-}
-
 func (t *MavenService) GetRepo(c *gin.Context) {
 	mavenGavInfo := parseMavenPath(c.Param("path"))
 	c.JSON(200, gin.H{"data": mavenGavInfo})
 }
 
-func parseMavenPath(path string) *MavenGAV {
-	res := &MavenGAV{}
+// GetLocalMavenRepo 本地maven仓库扫描，识别当前环境中的所有资源
+func (t *MavenService) GetLocalMavenRepo() {
+	var localMavenGav []*model.MavenArtifactModel
+	localRepoPath := t.applicationConfig.LocalRepoConfig.LocalPath
+	if localRepoPath == "" || localRepoPath == "." || localRepoPath == "/" {
+		until.Log.Error(`无效路径`)
+		return
+	}
+	filePaths := scan(localRepoPath, 10)
+	for _, path := range filePaths {
+		gavPath := strings.Replace(path, localRepoPath, "", 1)
+		mavenArtifact := parseMavenPath(gavPath)
+		mavenArtifact.FilePath = path
+		localMavenGav = append(localMavenGav, mavenArtifact)
+	}
+	all, err := t.mavenRepo.FindAll()
+	if err != nil {
+		until.Log.Error(`数据库查询失败` + err.Error())
+		return
+	}
+	allDataLen := len(all)
+	until.Log.Info("当前查询: ", allDataLen)
+	// 将获取到的数据一条条遍历并判断那些需要插入数据库 那些需要废弃
+	mavenGavMap := make(map[string]MavenGAV, allDataLen)
+	for _, model := range all {
+		mavenGavMap[model.Key] = MavenGAV{}
+	}
+	var needInsertData []*model.MavenArtifactModel
+	for _, mavenGAV := range localMavenGav {
+		_, exists := mavenGavMap[mavenGAV.Key]
+		if !exists {
+			needInsertData = append(needInsertData, mavenGAV)
+		}
+	}
+	e := t.mavenRepo.Save(needInsertData)
+	if e != nil {
+		panic(e)
+	}
+	until.Log.Info(fmt.Sprintf("当前扫描结果%d/%d", len(needInsertData), len(localMavenGav)))
+}
+
+// 将路径信息转换成maven坐标信息
+func parseMavenPath(path string) *model.MavenArtifactModel {
+	res := &model.MavenArtifactModel{}
 	// 标准化路径并分割
 	normalized := filepath.Clean(path)
 	index := strings.Index(normalized, "\\")
 	if index == 0 {
 		normalized = normalized[1:]
 	}
+	res.Key = normalized
 	parts := strings.Split(normalized, "\\")
 
 	// 1. 检查路径深度（至少需要4部分：g/a/v/filename）
@@ -108,7 +154,6 @@ func scan(path string, maxDepth int) []string {
 		return nil
 	})
 
-	println(len(res))
 	if err != nil {
 		return nil
 	}
