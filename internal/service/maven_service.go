@@ -6,6 +6,7 @@ import (
 	"cargo-m/internal/repository"
 	"cargo-m/internal/until"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,31 @@ type MavenGAV struct {
 
 func (t *MavenService) GetRepo(c *gin.Context) {
 	mavenGavInfo := parseMavenPath(c.Param("path"))
-	c.JSON(200, gin.H{"data": mavenGavInfo})
+	if mavenGavInfo != nil {
+		key, err := t.mavenRepo.GetByKey(mavenGavInfo.Key)
+		if err != nil {
+			c.JSON(500, gin.H{})
+			return
+		}
+		file, err := os.Open(key.FilePath)
+		if err != nil {
+			until.Log.Error("文件读取失败: %v", err)
+			c.JSON(500, gin.H{"error": "Failed to open file"})
+			return
+		}
+		defer file.Close()
+
+		stat, err := file.Stat()
+		if err != nil {
+			until.Log.Error("Failed to stat file: %v", err)
+			c.JSON(500, gin.H{"error": "Failed to get file info"})
+			return
+		}
+
+		// 设置Content-Length
+		c.DataFromReader(http.StatusOK, stat.Size(), "application/java-archive", file, nil)
+	}
+	c.JSON(500, gin.H{})
 }
 
 // GetLocalMavenRepo 本地maven仓库扫描，识别当前环境中的所有资源
@@ -60,9 +85,9 @@ func (t *MavenService) GetLocalMavenRepo() {
 	allDataLen := len(all)
 	until.Log.Info("当前查询: ", allDataLen)
 	// 将获取到的数据一条条遍历并判断那些需要插入数据库 那些需要废弃
-	mavenGavMap := make(map[string]MavenGAV, allDataLen)
-	for _, model := range all {
-		mavenGavMap[model.Key] = MavenGAV{}
+	mavenGavMap := make(map[string]model.MavenArtifactModel, allDataLen)
+	for _, artifactModel := range all {
+		mavenGavMap[artifactModel.Key] = artifactModel
 	}
 	var needInsertData []*model.MavenArtifactModel
 	for _, mavenGAV := range localMavenGav {
