@@ -58,6 +58,7 @@ func (t *MavenService) GetRepo(c *gin.Context) {
 
 		// 设置Content-Length
 		c.DataFromReader(http.StatusOK, stat.Size(), "application/java-archive", file, nil)
+		return
 	}
 	c.JSON(500, gin.H{})
 }
