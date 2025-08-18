@@ -24,7 +24,7 @@ func (a *Application) Start() {
 		a.CornTask.Start()
 	}
 	if a.WebEngine != nil {
-		err := a.WebEngine.Run(fmt.Sprintf("%s:%s", "", a.ApplicationConfig.WebConfig.Port))
+		err := a.WebEngine.Run(fmt.Sprintf("%s:%s", a.ApplicationConfig.WebConfig.Host, a.ApplicationConfig.WebConfig.Port))
 		if err != nil {
 			panic(err)
 		}

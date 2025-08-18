@@ -23,28 +23,22 @@ func NewMavenService(mavenRepo *repository.MavenRepo, applicationConfig *config.
 	return &MavenService{mavenRepo: mavenRepo, applicationConfig: applicationConfig}
 }
 
-type MavenGAV struct {
-	Key        string
-	GroupId    string `json:"groupId" binding:"required"`
-	ArtifactId string `json:"artifactId" binding:"required"`
-	Version    string `json:"version" binding:"required"`
-	FileName   string `json:"filename" binding:"required"`
-	Classifier string `json:"classifier,omitempty"` // 可选
-	Extension  string `json:"extension,omitempty"`  // 可选
-}
-
 func (t *MavenService) GetRepo(c *gin.Context) {
 	mavenGavInfo := parseMavenPath(c.Param("path"))
 	if mavenGavInfo != nil {
 		key, err := t.mavenRepo.GetByKey(mavenGavInfo.Key)
 		if err != nil {
-			c.JSON(500, gin.H{})
+			c.JSON(501, gin.H{})
+			return
+		}
+		if key == nil {
+			c.JSON(404, gin.H{})
 			return
 		}
 		file, err := os.Open(key.FilePath)
 		if err != nil {
 			until.Log.Error("文件读取失败: %v", err)
-			c.JSON(500, gin.H{"error": "Failed to open file"})
+			c.JSON(502, gin.H{"error": "Failed to open file"})
 			return
 		}
 		defer file.Close()
@@ -75,8 +69,12 @@ func (t *MavenService) GetLocalMavenRepo() {
 	for _, path := range filePaths {
 		gavPath := strings.Replace(path, localRepoPath, "", 1)
 		mavenArtifact := parseMavenPath(gavPath)
-		mavenArtifact.FilePath = path
-		localMavenGav = append(localMavenGav, mavenArtifact)
+		if mavenArtifact != nil {
+			mavenArtifact.FilePath = path
+			localMavenGav = append(localMavenGav, mavenArtifact)
+		} else {
+			until.Log.Error(`解析失败：` + path)
+		}
 	}
 	all, err := t.mavenRepo.FindAll()
 	if err != nil {
@@ -106,15 +104,16 @@ func (t *MavenService) GetLocalMavenRepo() {
 
 // 将路径信息转换成maven坐标信息
 func parseMavenPath(path string) *model.MavenArtifactModel {
+	systemSeparator := string(filepath.Separator)
 	res := &model.MavenArtifactModel{}
 	// 标准化路径并分割
 	normalized := filepath.Clean(path)
-	index := strings.Index(normalized, "\\")
+	index := strings.Index(normalized, systemSeparator)
 	if index == 0 {
 		normalized = normalized[1:]
 	}
 	res.Key = normalized
-	parts := strings.Split(normalized, "\\")
+	parts := strings.Split(normalized, systemSeparator)
 
 	// 1. 检查路径深度（至少需要4部分：g/a/v/filename）
 	if len(parts) < 4 {

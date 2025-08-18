@@ -18,12 +18,15 @@ func (repo *MavenRepo) FindAll() ([]model.MavenArtifactModel, error) {
 }
 
 func (repo *MavenRepo) GetByKey(key string) (*model.MavenArtifactModel, error) {
-	res := &model.MavenArtifactModel{}
-	tx := Db.Model(res).Where(` valid = 1 and key = ?`, key).First(res)
+	list := []*model.MavenArtifactModel{}
+	tx := Db.Model(&model.MavenArtifactModel{}).Where(` valid = 1 and key = ?`, key).Find(&list)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
-	return res, nil
+	if len(list) > 0 {
+		return list[0], nil
+	}
+	return nil, nil
 }
 
 func (repo *MavenRepo) Save(data []*model.MavenArtifactModel) error {
