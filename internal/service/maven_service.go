@@ -104,15 +104,16 @@ func (t *MavenService) GetLocalMavenRepo() {
 
 // 将路径信息转换成maven坐标信息
 func parseMavenPath(path string) *model.MavenArtifactModel {
+	systemSeparator := string(filepath.Separator)
 	res := &model.MavenArtifactModel{}
 	// 标准化路径并分割
 	normalized := filepath.Clean(path)
-	index := strings.Index(normalized, "\\")
+	index := strings.Index(normalized, systemSeparator)
 	if index == 0 {
 		normalized = normalized[1:]
 	}
 	res.Key = normalized
-	parts := strings.Split(normalized, "\\")
+	parts := strings.Split(normalized, systemSeparator)
 
 	// 1. 检查路径深度（至少需要4部分：g/a/v/filename）
 	if len(parts) < 4 {
