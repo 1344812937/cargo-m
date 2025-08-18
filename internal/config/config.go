@@ -13,6 +13,7 @@ type ApplicationConfig struct {
 }
 
 type WebConfig struct {
+	Host string `toml:"host" default:""`
 	Port string `toml:"port" default:"8080"`
 }
 
