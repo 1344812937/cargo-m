@@ -18,4 +18,5 @@ func NewMavenRepoHandler(mavenService *service.MavenService) *MavenRepoHandler {
 // 将需要暴露的路由方法注册
 func (handler *MavenRepoHandler) Register(router *gin.RouterGroup) {
 	router.GET("/getRepo/*path", handler.mavenService.GetRepo)
+	router.HEAD("/getRepo/*path", handler.mavenService.GetRepo)
 }
