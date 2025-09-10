@@ -10,6 +10,7 @@ import (
 	"cargo-m/internal/api"
 	"cargo-m/internal/config"
 	"cargo-m/internal/core"
+	"cargo-m/internal/proxy"
 	"cargo-m/internal/repository"
 	"cargo-m/internal/service"
 	"cargo-m/internal/tasks"
@@ -21,9 +22,10 @@ func InitializeApp() *core.Application {
 	applicationConfig := config.LoadApplicationConfig()
 	mavenRepo := repository.NewMavenRepo()
 	mavenService := service.NewMavenService(mavenRepo, applicationConfig)
-	cronTask := tasks.NewCronTask(mavenService)
+	cronTask := tasks.NewCronTask(mavenService, applicationConfig)
 	mavenRepoHandler := api.NewMavenRepoHandler(mavenService)
 	engine := api.NewRouter(mavenRepoHandler)
-	application := core.NewApplication(applicationConfig, cronTask, engine)
+	socksProxy := proxy.NewSocksProxy()
+	application := core.NewApplication(applicationConfig, cronTask, engine, socksProxy)
 	return application
 }

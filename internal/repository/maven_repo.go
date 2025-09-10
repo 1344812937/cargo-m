@@ -18,7 +18,7 @@ func (repo *MavenRepo) FindAll() ([]model.MavenArtifactModel, error) {
 }
 
 func (repo *MavenRepo) GetByKey(key string) (*model.MavenArtifactModel, error) {
-	list := []*model.MavenArtifactModel{}
+	var list []*model.MavenArtifactModel
 	tx := Db.Model(&model.MavenArtifactModel{}).Where(` valid = 1 and key = ?`, key).Find(&list)
 	if tx.Error != nil {
 		return nil, tx.Error

@@ -2,22 +2,32 @@ package config
 
 import (
 	"bytes"
+	"os"
+
 	"github.com/creasty/defaults"
 	"github.com/pelletier/go-toml/v2"
-	"os"
 )
 
 type ApplicationConfig struct {
 	WebConfig       WebConfig       `toml:"http"`
 	LocalRepoConfig LocalRepoConfig `toml:"maven_repo"`
+	ProxyConfig     ProxyConfig     `toml:"proxy"`
+}
+
+type ProxyConfig struct {
+	Enabled  bool   `toml:"enabled" default:"false"`
+	Port     int    `toml:"port" default:"7890"`
+	AuthUser string `toml:"auth_user" default:""`
+	AuthPass string `toml:"auth_pass" default:""`
 }
 
 type WebConfig struct {
 	Host string `toml:"host" default:""`
-	Port string `toml:"port" default:"8080"`
+	Port string `toml:"port" default:"9080"`
 }
 
 type LocalRepoConfig struct {
+	Enabled   bool   `toml:"enabled" default:"true"`
 	LocalPath string `toml:"local_path" default:""`
 }
 
@@ -55,7 +65,6 @@ func createDefaultConfig(filePath string) *ApplicationConfig {
 		panic(err)
 	}
 	cfgToml := buf.String()
-	println("配置：", cfgToml)
 	create, err := os.Create(filePath)
 	if err != nil {
 		panic(err)

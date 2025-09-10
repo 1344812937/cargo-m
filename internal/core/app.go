@@ -2,6 +2,7 @@ package core
 
 import (
 	"cargo-m/internal/config"
+	"cargo-m/internal/proxy"
 	"cargo-m/internal/tasks"
 	"cargo-m/internal/until"
 	"fmt"
@@ -13,18 +14,23 @@ type Application struct {
 	ApplicationConfig *config.ApplicationConfig
 	CornTask          *tasks.CronTask
 	WebEngine         *gin.Engine
+	ProxyServer       *proxy.SocksProxy
 }
 
-func NewApplication(applicationConfig *config.ApplicationConfig, cornTask *tasks.CronTask, webEngine *gin.Engine) *Application {
-	return &Application{ApplicationConfig: applicationConfig, CornTask: cornTask, WebEngine: webEngine}
+func NewApplication(applicationConfig *config.ApplicationConfig, cornTask *tasks.CronTask, webEngine *gin.Engine, proxyServer *proxy.SocksProxy) *Application {
+	return &Application{ApplicationConfig: applicationConfig, CornTask: cornTask, WebEngine: webEngine, ProxyServer: proxyServer}
 }
 
-func (a *Application) Start() {
-	if a.CornTask != nil {
-		a.CornTask.Start()
+func (app *Application) Start() {
+	if app.CornTask != nil {
+		app.CornTask.Start()
 	}
-	if a.WebEngine != nil {
-		err := a.WebEngine.Run(fmt.Sprintf("%s:%s", a.ApplicationConfig.WebConfig.Host, a.ApplicationConfig.WebConfig.Port))
+	proxyConfig := app.ApplicationConfig.ProxyConfig
+	if proxyConfig.Enabled {
+		go app.ProxyServer.Run(proxyConfig.Port, proxyConfig.AuthUser, proxyConfig.AuthPass)
+	}
+	if app.WebEngine != nil {
+		err := app.WebEngine.Run(fmt.Sprintf("%s:%s", app.ApplicationConfig.WebConfig.Host, app.ApplicationConfig.WebConfig.Port))
 		if err != nil {
 			panic(err)
 		}
@@ -32,8 +38,8 @@ func (a *Application) Start() {
 	until.Log.Info("Application started")
 }
 
-func (a *Application) Close() {
-	if a.CornTask != nil {
-		a.CornTask.Stop()
+func (app *Application) Close() {
+	if app.CornTask != nil {
+		app.CornTask.Stop()
 	}
 }

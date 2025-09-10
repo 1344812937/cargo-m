@@ -8,9 +8,11 @@ import (
 	"cargo-m/internal/api"
 	"cargo-m/internal/config"
 	"cargo-m/internal/core"
+	"cargo-m/internal/proxy"
 	"cargo-m/internal/repository"
 	"cargo-m/internal/service"
 	"cargo-m/internal/tasks"
+
 	"github.com/google/wire"
 )
 
@@ -26,6 +28,7 @@ func InitializeApp() *core.Application {
 		api.NewRouter,
 
 		tasks.NewCronTask,
+		proxy.NewSocksProxy,
 
 		core.NewApplication,
 	)

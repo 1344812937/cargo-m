@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"cargo-m/internal/config"
 	"cargo-m/internal/service"
 	"cargo-m/internal/until"
 
@@ -24,10 +25,12 @@ type CornTaskItem struct {
 }
 
 // NewCronTask 注册当前定时任务
-func NewCronTask(mavenService *service.MavenService) *CronTask {
+func NewCronTask(mavenService *service.MavenService, appConfig *config.ApplicationConfig) *CronTask {
 	res := &CronTask{cron: cron.New()}
-	res.RegisterTask(&CornTaskItem{"本地资源扫描", "*/5 * * * *", mavenService.GetLocalMavenRepo, true})
-	defer res.firstExecute()
+	if appConfig.LocalRepoConfig.Enabled {
+		res.RegisterTask(&CornTaskItem{"本地资源扫描", "*/5 * * * *", mavenService.GetLocalMavenRepo, true})
+	}
+	go res.firstExecute()
 	return res
 }
 
