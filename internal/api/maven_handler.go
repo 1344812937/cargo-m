@@ -2,6 +2,7 @@ package api
 
 import (
 	"cargo-m/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 

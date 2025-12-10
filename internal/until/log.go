@@ -1,16 +1,17 @@
 package until
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/petermattis/goid"
-	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,9 +23,8 @@ func init() {
 
 func initLogger() *logrus.Logger {
 	logger := logrus.New()
-	logger.SetFormatter(&logrus.JSONFormatter{
-		TimestampFormat: "2006-01-02 15:04:05.000",
-	})
+	logger.SetFormatter(&Log4jFormatter{})
+	logger.SetReportCaller(true) // 显示调用函数
 	logger.SetLevel(logrus.DebugLevel)
 
 	// 配置每日日志切割
@@ -33,102 +33,86 @@ func initLogger() *logrus.Logger {
 	os.MkdirAll(logDir, os.ModePerm) // 自动创建目录
 
 	var options []rotatelogs.Option
-	options = append(options, rotatelogs.WithRotationTime(24*time.Hour)) // 每日切割
-	options = append(options, rotatelogs.WithMaxAge(7*24*time.Hour))     // 保留7天
+	options = append(options, rotatelogs.WithRotationTime(24*time.Hour))  // 每日切割
+	options = append(options, rotatelogs.WithMaxAge(7*24*time.Hour))      // 保留7天
+	options = append(options, rotatelogs.WithRotationSize(100*1024*1024)) // 100MB切割
 
-	// 在非Windows环境或者有权限的环境下使用符号链接
-	if runtime.GOOS != "windows" {
-		options = append(options, rotatelogs.WithLinkName(logPath))
-	}
-
+	// 创建切割日志写入器
 	rotateLogger, err := rotatelogs.New(
 		logPath+".%Y%m%d", // 每日切割文件格式
 		options...,
 	)
 	if err != nil {
 		fmt.Printf("failed to create rotate logs: %v\n", err)
-		// 如果创建rotateLogger失败，我们使用标准输出作为日志输出，避免程序无法记录日志
+		// 如果创建失败，回退到标准输出
 		logger.Out = os.Stdout
 	} else {
-		// 添加hook实现写入切割文件
-		logger.Hooks.Add(lfshook.NewHook(
-			lfshook.WriterMap{
-				logrus.PanicLevel: rotateLogger,
-				logrus.FatalLevel: rotateLogger,
-				logrus.ErrorLevel: rotateLogger,
-				logrus.WarnLevel:  rotateLogger,
-				logrus.InfoLevel:  rotateLogger,
-				logrus.DebugLevel: rotateLogger,
-			},
-			&logrus.JSONFormatter{
-				TimestampFormat: "2006-01-02 15:04:05.000",
-			},
-		))
+		// 同时输出到控制台和日志文件
+		logger.SetOutput(io.MultiWriter(os.Stdout, rotateLogger))
 	}
 
 	// 添加goroutine ID的hook
 	logger.AddHook(&GoroutineIDHook{})
 
-	// 添加堆栈捕获hook
-	logger.AddHook(&StackTraceHook{})
-
 	return logger
 }
 
-// GoroutineIDHook 添加goroutine ID的hook
+// GoroutineIDHook 用于添加goroutine ID
 type GoroutineIDHook struct{}
 
-func (h *GoroutineIDHook) Levels() []logrus.Level {
+func (hook *GoroutineIDHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-func (h *GoroutineIDHook) Fire(entry *logrus.Entry) error {
-	entry.Data["goroutine"] = goid.Get()
+func (hook *GoroutineIDHook) Fire(entry *logrus.Entry) error {
+	entry.Data["goroutine"] = fmt.Sprintf("%d", getGoroutineID())
 	return nil
 }
 
-// 堆栈追踪Hook实现
-type StackTraceHook struct{}
-
-func (h *StackTraceHook) Levels() []logrus.Level {
-	return []logrus.Level{
-		logrus.PanicLevel,
-		logrus.FatalLevel,
-		logrus.ErrorLevel,
-	}
+func getGoroutineID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	// Extract the 6504 out of "goroutine 6504 ["
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
 }
 
-func (h *StackTraceHook) Fire(entry *logrus.Entry) error {
-	buf := make([]byte, 1<<16) // 64KB buffer
-	stackSize := runtime.Stack(buf, false)
-	stackTrace := string(buf[0:stackSize])
+// Log4jFormatter 模仿Java log4j的格式
+type Log4jFormatter struct{}
 
-	// 简化堆栈路径（可选）
-	stackTrace = simplifyPaths(stackTrace)
+func (f *Log4jFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	timestamp := entry.Time.Format("2006-01-02 15:04:05.000")
+	level := strings.ToUpper(entry.Level.String())[0:4] // 只取前4位：INFO, WARN, ERRO
 
-	entry.Data["stack"] = stackTrace
-	return nil
-}
-
-// 简化文件路径（可选）
-func simplifyPaths(stack string) string {
-	lines := strings.Split(stack, "\n")
-	for i := 1; i < len(lines); i += 2 { // 跳过goroutine行
-		if i >= len(lines) {
-			break
-		}
-		if lines[i] == "" {
-			continue
-		}
-		// 去除GOROOT路径
-		if strings.HasPrefix(lines[i], runtime.GOROOT()) {
-			lines[i] = strings.Replace(lines[i], runtime.GOROOT(), "$GOROOT", 1)
-		}
-		// 缩短GOPATH路径
-		if gopath := os.Getenv("GOPATH"); gopath != "" {
-			lines[i] = strings.Replace(lines[i], gopath+"/src/", "", -1)
-		}
-		// 替换当前目录路径?
+	callerInfo := "???"
+	if entry.HasCaller() {
+		// 只显示文件名和行号
+		_, file := filepath.Split(entry.Caller.File)
+		callerInfo = fmt.Sprintf("%s:%d", file, entry.Caller.Line)
 	}
-	return strings.Join(lines, "\n")
+
+	// log4j风格格式：时间戳 [级别] 调用位置 - 消息内容
+	msg := fmt.Sprintf("%s [%s] %s - %s",
+		timestamp,
+		level,
+		callerInfo,
+		entry.Message)
+
+	// 附加字段处理 (key=value格式)
+	if len(entry.Data) > 0 {
+		for k, v := range entry.Data {
+			if k != logrus.ErrorKey { // 排除错误字段，单独处理
+				msg += fmt.Sprintf(" %s=%v", k, v)
+			}
+		}
+	}
+
+	// 错误处理
+	if err, ok := entry.Data[logrus.ErrorKey].(error); ok {
+		msg += fmt.Sprintf("\nERROR: %v", err)
+	}
+
+	return []byte(msg + "\n"), nil
 }
