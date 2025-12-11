@@ -20,6 +20,7 @@ func InitializeApp() *core.Application {
 	wire.Build(
 		config.LoadApplicationConfig,
 
+		repository.NewDataSource,
 		repository.NewMavenRepo,
 
 		service.NewMavenService,

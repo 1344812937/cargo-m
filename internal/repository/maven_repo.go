@@ -2,15 +2,22 @@ package repository
 
 import "cargo-m/internal/model"
 
-type MavenRepo struct{}
+type MavenRepo struct {
+	*BaseRepository[model.MavenArtifactModel]
+}
 
-func NewMavenRepo() *MavenRepo {
-	return &MavenRepo{}
+func NewMavenRepo(dataSource *DataSource) *MavenRepo {
+	instance := &MavenRepo{
+		BaseRepository: &BaseRepository[model.MavenArtifactModel]{
+			dataSource: dataSource,
+		},
+	}
+	instance.InitializeRepository()
+	return instance
 }
 
 func (repo *MavenRepo) FindAll() ([]model.MavenArtifactModel, error) {
-	var allData []model.MavenArtifactModel
-	tx := Db.Model(&model.MavenArtifactModel{}).Where(` valid = 1`).Find(&allData)
+	allData, tx := repo.List()
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
@@ -18,18 +25,17 @@ func (repo *MavenRepo) FindAll() ([]model.MavenArtifactModel, error) {
 }
 
 func (repo *MavenRepo) GetByKey(key string) (*model.MavenArtifactModel, error) {
-	var list []*model.MavenArtifactModel
-	tx := Db.Model(&model.MavenArtifactModel{}).Where(` valid = 1 and key = ?`, key).Find(&list)
-	if tx.Error != nil {
-		return nil, tx.Error
+	list, err := repo.SelectList(nil, ` valid = 1 and key = ?`, key)
+	if err != nil {
+		return nil, err
 	}
 	if len(list) > 0 {
-		return list[0], nil
+		return &list[0], nil
 	}
 	return nil, nil
 }
 
 func (repo *MavenRepo) Save(data []*model.MavenArtifactModel) error {
-	Db.Model(&model.MavenArtifactModel{}).CreateInBatches(data, 100)
+	repo.GetConnection().CreateInBatches(data, 100)
 	return nil
 }

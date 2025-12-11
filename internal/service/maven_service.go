@@ -16,19 +16,25 @@ import (
 )
 
 type MavenService struct {
+	*BaseService[model.MavenArtifactModel]
+	repo              *repository.MavenRepo
 	applicationConfig *config.ApplicationConfig
-	mavenRepo         *repository.MavenRepo
 	httpClient        *http.Client
 }
 
 func NewMavenService(mavenRepo *repository.MavenRepo, applicationConfig *config.ApplicationConfig) *MavenService {
-	return &MavenService{mavenRepo: mavenRepo, applicationConfig: applicationConfig, httpClient: http.DefaultClient}
+	return &MavenService{
+		BaseService:       NewBaseService(mavenRepo),
+		repo:              mavenRepo,
+		applicationConfig: applicationConfig,
+		httpClient:        http.DefaultClient,
+	}
 }
 
 func (ms *MavenService) GetRepo(c *gin.Context) {
 	mavenGavInfo := parseMavenPath(c.Param("path"))
 	if mavenGavInfo != nil {
-		key, err := ms.mavenRepo.GetByKey(mavenGavInfo.Key)
+		key, err := ms.repo.GetByKey(mavenGavInfo.Key)
 		if err != nil {
 			c.JSON(501, gin.H{})
 			return
@@ -67,7 +73,7 @@ func (ms *MavenService) GetRepo(c *gin.Context) {
 func (ms *MavenService) CheckRepo(c *gin.Context) {
 	mavenGavInfo := parseMavenPath(c.Param("path"))
 	if mavenGavInfo != nil {
-		key, err := ms.mavenRepo.GetByKey(mavenGavInfo.Key)
+		key, err := ms.repo.GetByKey(mavenGavInfo.Key)
 		if err != nil {
 			c.JSON(501, gin.H{})
 			return
@@ -143,6 +149,10 @@ func (ms *MavenService) GetLocalMavenRepo() {
 	}
 	filePaths := scan(localRepoPath, 10)
 	for _, path := range filePaths {
+		// 排除无效文件
+		if strings.Contains(path, "_remote.repositories") {
+			continue
+		}
 		gavPath := strings.Replace(path, localRepoPath, "", 1)
 		mavenArtifact := parseMavenPath(gavPath)
 		if mavenArtifact != nil {
@@ -152,7 +162,7 @@ func (ms *MavenService) GetLocalMavenRepo() {
 			until.Log.Error(`解析失败：` + path)
 		}
 	}
-	all, err := ms.mavenRepo.FindAll()
+	all, err := ms.repo.FindAll()
 	if err != nil {
 		until.Log.Error(`数据库查询失败` + err.Error())
 		return
@@ -171,7 +181,7 @@ func (ms *MavenService) GetLocalMavenRepo() {
 			needInsertData = append(needInsertData, mavenGAV)
 		}
 	}
-	e := ms.mavenRepo.Save(needInsertData)
+	e := ms.repo.Save(needInsertData)
 	if e != nil {
 		panic(e)
 	}
@@ -181,7 +191,7 @@ func (ms *MavenService) GetLocalMavenRepo() {
 // 将路径信息转换成maven坐标信息
 func parseMavenPath(path string) *model.MavenArtifactModel {
 	systemSeparator := string(filepath.Separator)
-	res := &model.MavenArtifactModel{}
+	res := &model.MavenArtifactModel{BaseModel: &model.BaseModel{}}
 	// 标准化路径并分割
 	normalized := filepath.Clean(path)
 	index := strings.Index(normalized, systemSeparator)
