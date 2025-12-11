@@ -27,8 +27,9 @@ type WebConfig struct {
 }
 
 type LocalRepoConfig struct {
-	Enabled   bool   `toml:"enabled" default:"true"`
-	LocalPath string `toml:"local_path" default:""`
+	Enabled    bool   `toml:"enabled" default:"true"`
+	RemoteRepo string `toml:"remote_repo" default:""`
+	LocalPath  string `toml:"local_path" default:""`
 }
 
 func LoadApplicationConfig() *ApplicationConfig {

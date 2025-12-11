@@ -6,6 +6,7 @@ import (
 	"cargo-m/internal/repository"
 	"cargo-m/internal/until"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,21 +18,27 @@ import (
 type MavenService struct {
 	applicationConfig *config.ApplicationConfig
 	mavenRepo         *repository.MavenRepo
+	httpClient        *http.Client
 }
 
 func NewMavenService(mavenRepo *repository.MavenRepo, applicationConfig *config.ApplicationConfig) *MavenService {
-	return &MavenService{mavenRepo: mavenRepo, applicationConfig: applicationConfig}
+	return &MavenService{mavenRepo: mavenRepo, applicationConfig: applicationConfig, httpClient: http.DefaultClient}
 }
 
-func (t *MavenService) GetRepo(c *gin.Context) {
+func (ms *MavenService) GetRepo(c *gin.Context) {
 	mavenGavInfo := parseMavenPath(c.Param("path"))
 	if mavenGavInfo != nil {
-		key, err := t.mavenRepo.GetByKey(mavenGavInfo.Key)
+		key, err := ms.mavenRepo.GetByKey(mavenGavInfo.Key)
 		if err != nil {
 			c.JSON(501, gin.H{})
 			return
 		}
 		if key == nil {
+			repoConfig := ms.applicationConfig.LocalRepoConfig
+			if len(repoConfig.RemoteRepo) > 0 {
+				ms.ProxyHttp(c, repoConfig.RemoteRepo)
+				return
+			}
 			c.JSON(404, gin.H{})
 			return
 		}
@@ -57,10 +64,79 @@ func (t *MavenService) GetRepo(c *gin.Context) {
 	c.JSON(500, gin.H{})
 }
 
+func (ms *MavenService) CheckRepo(c *gin.Context) {
+	mavenGavInfo := parseMavenPath(c.Param("path"))
+	if mavenGavInfo != nil {
+		key, err := ms.mavenRepo.GetByKey(mavenGavInfo.Key)
+		if err != nil {
+			c.JSON(501, gin.H{})
+			return
+		}
+		if key == nil {
+			repoConfig := ms.applicationConfig.LocalRepoConfig
+			if len(repoConfig.RemoteRepo) > 0 {
+				err := ms.ProxyHttp(c, repoConfig.RemoteRepo)
+				if err != nil {
+					c.JSON(502, gin.H{"error": err.Error()})
+					return
+				}
+			}
+			c.JSON(404, gin.H{})
+			return
+		}
+		c.Status(200)
+		return
+	}
+	c.JSON(500, gin.H{})
+}
+
+func (ms *MavenService) ProxyHttp(c *gin.Context, proxyUrl string) error {
+	if len(proxyUrl) == 0 {
+		return fmt.Errorf("proxy url is empty")
+	}
+	if strings.LastIndex(proxyUrl, "/") == len(proxyUrl)-1 {
+		proxyUrl = proxyUrl[:len(proxyUrl)-1]
+	}
+	requestUrl := proxyUrl + c.Param("path")
+	until.Log.Info("无本地资源转发至：", requestUrl)
+	// 创建HTTP请求（复用原始请求的Method、Header等）
+	req, err := http.NewRequest(c.Request.Method, requestUrl, c.Request.Body)
+	if err != nil {
+		return err
+	}
+	// 复制原始请求的Header（特别是Range头支持断点续传）
+	for k, v := range c.Request.Header {
+		req.Header[k] = v
+	}
+	// 发送请求到远程仓库
+	resp, err := ms.httpClient.Do(req)
+
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	// 设置响应头（复制远程仓库的Header）
+	for k, v := range resp.Header {
+		c.Header(k, v[0]) // 取第一个值
+	}
+	c.Status(resp.StatusCode)
+
+	// 7. 流式传输响应体
+	_, err = io.Copy(c.Writer, resp.Body)
+	if err != nil {
+		// 捕获客户端断开连接的错误，避免日志污染
+		if strings.Contains(err.Error(), "client disconnected") {
+			return nil
+		}
+		return fmt.Errorf("streaming response failed: %w", err)
+	}
+	return nil
+}
+
 // GetLocalMavenRepo 本地maven仓库扫描，识别当前环境中的所有资源
-func (t *MavenService) GetLocalMavenRepo() {
+func (ms *MavenService) GetLocalMavenRepo() {
 	var localMavenGav []*model.MavenArtifactModel
-	localRepoPath := t.applicationConfig.LocalRepoConfig.LocalPath
+	localRepoPath := ms.applicationConfig.LocalRepoConfig.LocalPath
 	if localRepoPath == "" || localRepoPath == "." || localRepoPath == "/" {
 		until.Log.Error(`无效路径`)
 		return
@@ -76,7 +152,7 @@ func (t *MavenService) GetLocalMavenRepo() {
 			until.Log.Error(`解析失败：` + path)
 		}
 	}
-	all, err := t.mavenRepo.FindAll()
+	all, err := ms.mavenRepo.FindAll()
 	if err != nil {
 		until.Log.Error(`数据库查询失败` + err.Error())
 		return
@@ -95,7 +171,7 @@ func (t *MavenService) GetLocalMavenRepo() {
 			needInsertData = append(needInsertData, mavenGAV)
 		}
 	}
-	e := t.mavenRepo.Save(needInsertData)
+	e := ms.mavenRepo.Save(needInsertData)
 	if e != nil {
 		panic(e)
 	}

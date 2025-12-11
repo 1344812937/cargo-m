@@ -25,6 +25,7 @@ func InitializeApp() *core.Application {
 		service.NewMavenService,
 
 		api.NewMavenRepoHandler,
+		api.NewBlueCat,
 		api.NewRouter,
 
 		tasks.NewCronTask,

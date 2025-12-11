@@ -25,7 +25,7 @@ func initLogger() *logrus.Logger {
 	logger := logrus.New()
 	logger.SetFormatter(&Log4jFormatter{})
 	logger.SetReportCaller(true) // 显示调用函数
-	logger.SetLevel(logrus.DebugLevel)
+	logger.SetLevel(logrus.InfoLevel)
 
 	// 配置每日日志切割
 	logPath := "./logs/app"

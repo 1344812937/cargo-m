@@ -24,7 +24,8 @@ func InitializeApp() *core.Application {
 	mavenService := service.NewMavenService(mavenRepo, applicationConfig)
 	cronTask := tasks.NewCronTask(mavenService, applicationConfig)
 	mavenRepoHandler := api.NewMavenRepoHandler(mavenService)
-	engine := api.NewRouter(mavenRepoHandler)
+	blueCatApi := api.NewBlueCat(mavenService)
+	engine := api.NewRouter(mavenRepoHandler, blueCatApi)
 	socksProxy := proxy.NewSocksProxy()
 	application := core.NewApplication(applicationConfig, cronTask, engine, socksProxy)
 	return application

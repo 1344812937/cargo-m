@@ -14,18 +14,20 @@ func (w *GinLogWriter) Write(p []byte) (n int, err error) {
 	log := until.Log
 	// 去除尾部换行符
 	msg := strings.TrimSpace(string(p))
-
-	// 根据日志级别转发到 logrus
-	switch {
-	case strings.Contains(msg, "[WARNING]"):
-		log.Warn(msg)
-	case strings.Contains(msg, "[DEBUG]"):
-		log.Debug(msg)
-	case strings.Contains(msg, "[ERROR]"):
-		log.Error(msg)
-	default:
-		log.Info(msg)
+	if len(msg) > 0 {
+		// 根据日志级别转发到 logrus
+		switch {
+		case strings.Contains(msg, "[WARNING]"):
+			log.Warn(msg)
+		case strings.Contains(msg, "[DEBUG]"):
+			log.Debug(msg)
+		case strings.Contains(msg, "[ERROR]"):
+			log.Error(msg)
+		default:
+			log.Info(msg)
+		}
 	}
+
 	return len(p), nil
 }
 
@@ -52,9 +54,10 @@ func initRouter() *gin.Engine {
 }
 
 // NewRouter 路由初始化
-func NewRouter(mavenRepoHandler *MavenRepoHandler) *gin.Engine {
+func NewRouter(mavenRepoHandler *MavenRepoHandler, blueCat *BlueCatApi) *gin.Engine {
 	webEngine := initRouter()
 	// 注册路由
 	mavenRepoHandler.Register(webEngine.Group("maven-repo"))
+	blueCat.Register(webEngine.Group(""))
 	return webEngine
 }

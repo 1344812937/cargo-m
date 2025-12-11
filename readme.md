@@ -11,5 +11,5 @@
 ```
 - 服务启动成功后可将远程仓库地址设置为一下内容, 可直接拉取依赖。
 ```azure
-http://ip:端口/maven-repo/getRepo/
+http://ip:port/maven-repo/getRepo/
 ```

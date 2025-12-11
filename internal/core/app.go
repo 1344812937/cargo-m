@@ -11,7 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var ApplicationInstance *Application
+var applicationInstance *Application
+
+func GetCurrentApp() *Application {
+	return applicationInstance
+}
 
 type Application struct {
 	ApplicationConfig *config.ApplicationConfig
@@ -22,14 +26,15 @@ type Application struct {
 }
 
 func NewApplication(applicationConfig *config.ApplicationConfig, cornTask *tasks.CronTask, webEngine *gin.Engine, proxyServer *proxy.SocksProxy) *Application {
-	if ApplicationInstance == nil {
-		ApplicationInstance = &Application{ApplicationConfig: applicationConfig, CornTask: cornTask, WebEngine: webEngine, ProxyServer: proxyServer}
+	if applicationInstance == nil {
+		applicationInstance = &Application{ApplicationConfig: applicationConfig, CornTask: cornTask, WebEngine: webEngine, ProxyServer: proxyServer}
 	}
-	return ApplicationInstance
+	return applicationInstance
 }
 
 func (app *Application) Start() {
-	app.StartTime = &time.Time{}
+	now := time.Now()
+	app.StartTime = &now
 	if app.CornTask != nil {
 		app.CornTask.Start()
 	}
@@ -38,10 +43,12 @@ func (app *Application) Start() {
 		go app.ProxyServer.Run(proxyConfig.Port, proxyConfig.AuthUser, proxyConfig.AuthPass)
 	}
 	if app.WebEngine != nil {
-		err := app.WebEngine.Run(fmt.Sprintf("%s:%s", app.ApplicationConfig.WebConfig.Host, app.ApplicationConfig.WebConfig.Port))
-		if err != nil {
-			panic(err)
-		}
+		go func() {
+			err := app.WebEngine.Run(fmt.Sprintf("%s:%s", app.ApplicationConfig.WebConfig.Host, app.ApplicationConfig.WebConfig.Port))
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
 	until.Log.Info("Application started")
 }
