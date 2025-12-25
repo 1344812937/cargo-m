@@ -8,6 +8,7 @@
 [maven_repo]
   enabled = true  ＃是否启用自动扫描
   local_path = '本地资源路径'
+  remote_repo = '远程转发地址'
 ```
 - 服务启动成功后可将远程仓库地址设置为一下内容, 可直接拉取依赖。
 ```azure
